@@ -1,0 +1,100 @@
+"use client";
+import { useState } from "react";
+import { Circle, CheckCircle2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Task, Appt, uid, tm, dt, Set } from "@/lib/store";
+
+export function Tasks({ tasks, setTasks }: { tasks: Task[]; setTasks: Set<Task[]> }) {
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+  const [alarm, setAlarm] = useState(true);
+  const add = () => {
+    if (!title.trim()) return;
+    setTasks((p) => [{ id: uid(), title: title.trim(), due: due ? new Date(due).getTime() : undefined, done: false, alarm: alarm && !!due }, ...p]);
+    setTitle(""); setDue("");
+  };
+  const sorted = [...tasks].sort((a, b) => +a.done - +b.done || (a.due ?? 9e15) - (b.due ?? 9e15));
+  return (
+    <div className="space-y-4">
+      <div className="card space-y-2">
+        <input className="inp" placeholder="New task or reminder" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input className="inp" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={alarm} onChange={(e) => setAlarm(e.target.checked)} />Ring an alarm at the due time</label>
+        <button className="btn w-full" onClick={add}>Add task</button>
+      </div>
+      {sorted.length === 0 && <p className="text-mute">No tasks yet. Add one above or use the mic.</p>}
+      {sorted.map((t) => (
+        <div key={t.id} className="card flex items-center gap-3 py-3">
+          <button aria-label="Toggle done" onClick={() => setTasks((p) => p.map((x) => (x.id === t.id ? { ...x, done: !x.done } : x)))}>
+            {t.done ? <CheckCircle2 className="text-brand" /> : <Circle className="text-mute" />}
+          </button>
+          <div className="flex-1">
+            <div className={t.done ? "text-mute line-through" : ""}>{t.title}</div>
+            {t.due && <div className="text-xs text-mute">{dt(t.due)}, {tm(t.due)}{t.alarm ? " · alarm on" : ""}</div>}
+          </div>
+          <button aria-label="Delete" onClick={() => setTasks((p) => p.filter((x) => x.id !== t.id))}><Trash2 size={18} className="text-mute" /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Calendar({ appts, setAppts }: { appts: Appt[]; setAppts: Set<Appt[]> }) {
+  const [m, setM] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
+  const [sel, setSel] = useState(new Date().toDateString());
+  const [title, setTitle] = useState("");
+  const [when, setWhen] = useState("");
+  const [remind, setRemind] = useState(10);
+  const [alarm, setAlarm] = useState(true);
+  const lead = m.getDay();
+  const days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  const cells: (number | null)[] = [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
+  const dayStr = (d: number) => new Date(m.getFullYear(), m.getMonth(), d).toDateString();
+  const has = (d: number) => appts.some((a) => new Date(a.at).toDateString() === dayStr(d));
+  const list = appts.filter((a) => new Date(a.at).toDateString() === sel).sort((a, b) => a.at - b.at);
+  const shift = (n: number) => setM(new Date(m.getFullYear(), m.getMonth() + n, 1));
+  const add = () => {
+    if (!title.trim() || !when) return;
+    setAppts((p) => [...p, { id: uid(), title: title.trim(), at: new Date(when).getTime(), remind, alarm }]);
+    setTitle(""); setWhen("");
+  };
+  return (
+    <div className="space-y-4">
+      <div className="card">
+        <div className="mb-2 flex items-center justify-between">
+          <button aria-label="Previous month" onClick={() => shift(-1)}><ChevronLeft /></button>
+          <div className="font-semibold">{m.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</div>
+          <button aria-label="Next month" onClick={() => shift(1)}><ChevronRight /></button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-sm">
+          {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i} className="text-mute">{d}</div>)}
+          {cells.map((d, i) => d === null ? <div key={i} /> : (
+            <button key={i} onClick={() => setSel(dayStr(d))}
+              className={`relative rounded-lg py-2 ${sel === dayStr(d) ? "bg-brand text-paper" : ""} ${dayStr(d) === new Date().toDateString() ? "font-bold" : ""}`}>
+              {d}{has(d) && <span className="absolute bottom-0.5 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-alarm" />}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {list.length === 0 && <p className="text-mute">No appointments on this day.</p>}
+        {list.map((a) => (
+          <div key={a.id} className="card flex items-center gap-3 py-3">
+            <span className="w-20 text-sm text-mute">{tm(a.at)}</span>
+            <span className="flex-1">{a.title}</span>
+            <button aria-label="Delete" onClick={() => setAppts((p) => p.filter((x) => x.id !== a.id))}><Trash2 size={18} className="text-mute" /></button>
+          </div>
+        ))}
+      </div>
+      <div className="card space-y-2">
+        <input className="inp" placeholder="Appointment title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input className="inp" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+        <select className="inp" value={remind} onChange={(e) => setRemind(+e.target.value)}>
+          <option value={0}>Remind at start time</option><option value={10}>10 minutes before</option>
+          <option value={60}>1 hour before</option><option value={1440}>1 day before</option>
+        </select>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={alarm} onChange={(e) => setAlarm(e.target.checked)} />Ring an alarm</label>
+        <button className="btn w-full" onClick={add}>Add appointment</button>
+      </div>
+    </div>
+  );
+}

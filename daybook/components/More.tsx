@@ -2,9 +2,9 @@
 import { useState } from "react";
 import { isNative, setupAlarms } from "@/lib/native";
 
-type Props = { testAlarm: () => void; exportData: () => void; importData: (f: File) => void; canInstall: boolean; install: () => void };
+type Props = { testAlarm: () => void; exportData: () => void; importData: (f: File) => void; canInstall: boolean; install: () => void; autoListen: boolean; setAutoListen: (b: boolean) => void };
 
-export default function More({ testAlarm, exportData, importData, canInstall, install }: Props) {
+export default function More({ testAlarm, exportData, importData, canInstall, install, autoListen, setAutoListen }: Props) {
   const native = isNative();
   const [perm, setPerm] = useState(typeof Notification === "undefined" ? "unsupported" : Notification.permission);
   const [msg, setMsg] = useState("");
@@ -28,6 +28,11 @@ export default function More({ testAlarm, exportData, importData, canInstall, in
           )}
         </div>
       )}
+      <div className="card space-y-2">
+        <div className="font-semibold">Hands-free</div>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={autoListen} onChange={(e) => setAutoListen(e.target.checked)} />Start listening as soon as the app opens</label>
+        <p className="text-sm text-mute">With this on, say “Hey Google, open Daybook”, then speak, for example “Spent 450 on petrol”. It is saved when you stop talking, and you can undo it. Long-press the Daybook icon for shortcuts: Voice command, Add expense, Voice note and Add reminder.</p>
+      </div>
       <div className="card space-y-2">
         <div className="font-semibold">Alarms</div>
         <p className="text-sm text-mute">

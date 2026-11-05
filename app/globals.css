@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+:root{--paper:#F1F4F0;--card:#FFFFFF;--ink:#14231F;--mute:#5E6F69;--line:#D9E0DB;--brand:#0E6B5C;--alarm:#E39A12;--out:#B4432E;--in:#14825A}
+@media (prefers-color-scheme:dark){:root{--paper:#0D1512;--card:#15201C;--ink:#E8F0EC;--mute:#8FA39B;--line:#253530;--brand:#3DB89F;--alarm:#F0B33A;--out:#E5775F;--in:#4DC795}}
+body{background:var(--paper);color:var(--ink);font-family:var(--font),system-ui,sans-serif}
+@layer components{
+  .card{@apply rounded-2xl bg-card border border-line p-4}
+  .inp{@apply w-full rounded-xl border border-line bg-paper px-3 py-2.5 outline-none focus:border-brand}
+  .btn{@apply rounded-xl bg-brand px-4 py-2.5 font-semibold text-paper active:scale-95}
+}
+@media (prefers-reduced-motion:no-preference){.ring-pulse{animation:p 1s infinite}@keyframes p{50%{transform:scale(1.12)}}}

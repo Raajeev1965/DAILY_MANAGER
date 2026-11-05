@@ -79,6 +79,24 @@ export function parse(raw: string): Intent {
 
 export type Mic = { stop: () => void };
 
+// Android Chrome (and WebView) in continuous mode often returns the same words again and again:
+// "hello", "hello", "hello hello" ... Build the transcript while dropping those repeats.
+function dedupe(results: any): string {
+  const parts: string[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const t = (results[i][0]?.transcript || "").trim();
+    if (!t) continue;
+    const last = parts[parts.length - 1];
+    if (last !== undefined) {
+      const a = t.toLowerCase(), b = last.toLowerCase();
+      if (a === b || b.endsWith(a)) continue;      // same text again, or a tail of what we already have
+      if (a.startsWith(b)) { parts[parts.length - 1] = t; continue; } // longer version of the previous piece
+    }
+    parts.push(t);
+  }
+  return parts.join(" ");
+}
+
 const ERRORS: Record<string, string> = {
   "not-allowed": "The microphone is blocked. Allow it in the browser's site settings, then tap Speak again.",
   "service-not-allowed": "Voice input is blocked here. If Daybook is on your Home Screen, open it in Chrome instead, or type below.",
@@ -103,9 +121,7 @@ export function listen(lang: string, o: { onText: (t: string) => void; onStatus:
     r.onstart = () => o.onStatus("Listening… tap the mic again when you are done");
     r.onresult = (e: any) => {
       heard = true;
-      let t = "";
-      for (let i = 0; i < e.results.length; i++) t += " " + e.results[i][0].transcript;
-      session = t.trim();
+      session = dedupe(e.results);
       emit();
     };
     r.onerror = (e: any) => {

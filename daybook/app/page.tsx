@@ -4,6 +4,7 @@ import { Home, ListChecks, CalendarDays, Wallet, Settings, Mic, BellRing, Sticky
 import { useStore, uid, money, Note, Task, Appt, Txn } from "@/lib/store";
 import { parse, listen, Intent, Mic as MicCtl } from "@/lib/voice";
 import { startRing, stopRing } from "@/lib/alarm";
+import { isNative, setupAlarms, syncAlarms, snoozeNative, clearDelivered } from "@/lib/native";
 import Today from "@/components/Today";
 import Money from "@/components/Money";
 import More from "@/components/More";
@@ -34,7 +35,19 @@ export default function App() {
   const micRef = useRef<MicCtl | null>(null);
   const [ring, setRing] = useState<{ id: string; title: string } | null>(null);
 
-  useEffect(() => { navigator.serviceWorker?.register("/sw.js").catch(() => {}); }, []);
+  useEffect(() => { if (!isNative()) navigator.serviceWorker?.register("/sw.js").catch(() => {}); }, []);
+  const [installEv, setInstallEv] = useState<any>(null);
+  useEffect(() => {
+    const h = (e: Event) => { e.preventDefault(); setInstallEv(e); };
+    const done = () => setInstallEv(null);
+    window.addEventListener("beforeinstallprompt", h);
+    window.addEventListener("appinstalled", done);
+    return () => { window.removeEventListener("beforeinstallprompt", h); window.removeEventListener("appinstalled", done); };
+  }, []);
+  const install = async () => { if (!installEv) return; installEv.prompt(); await installEv.userChoice; setInstallEv(null); };
+  // In the Android app: ask for alarm permission once, then keep Android's alarms in step with your tasks and appointments.
+  useEffect(() => { if (isNative() && !localStorage.getItem("daybook:alarmsetup")) { localStorage.setItem("daybook:alarmsetup", "1"); setupAlarms(); } }, []);
+  useEffect(() => { const t = setTimeout(() => syncAlarms(tasks, appts), 800); return () => clearTimeout(t); }, [tasks, appts]);
 
   // Check every 5 seconds for reminders that are due.
   useEffect(() => {
@@ -47,16 +60,16 @@ export default function App() {
       const d = due.find((x) => !fired.includes(x.id));
       if (d && !ring) {
         setFired((f) => [...f.slice(-200), d.id]);
-        setRing(d); startRing();
-        if (typeof Notification !== "undefined" && Notification.permission === "granted")
+        setRing(d); if (!isNative()) startRing();
+        if (!isNative() && typeof Notification !== "undefined" && Notification.permission === "granted")
           navigator.serviceWorker?.ready.then((r) => r.showNotification("Reminder", { body: d.title, vibrate: [300, 150, 300], requireInteraction: true } as NotificationOptions));
       }
     }, 5000);
     return () => clearInterval(t);
   }, [tasks, appts, ring, fired, setFired]);
 
-  const stop = () => { stopRing(); setRing(null); };
-  const snooze = () => { const r = ring; stop(); if (r) setTimeout(() => { setRing(r); startRing(); }, 5 * 6e4); };
+  const stop = () => { stopRing(); setRing(null); if (isNative()) clearDelivered(); };
+  const snooze = () => { const r = ring; stop(); if (r) { if (isNative()) snoozeNative(r.title, 5); else setTimeout(() => { setRing(r); startRing(); }, 5 * 6e4); } };
 
   const mic = () => {
     micRef.current?.stop();
@@ -78,6 +91,15 @@ export default function App() {
     if (intent.kind === "txn") setTxns((p) => [{ id: uid(), type: intent.type, amount: intent.amount, cat: intent.cat, note: intent.note, at: Date.now() }, ...p]);
     closeSheet(); setHeard("");
   };
+  const importData = async (f: File) => {
+    try {
+      const d = JSON.parse(await f.text());
+      if (Array.isArray(d.notes)) setNotes(d.notes);
+      if (Array.isArray(d.tasks)) setTasks(d.tasks);
+      if (Array.isArray(d.appts)) setAppts(d.appts);
+      if (Array.isArray(d.txns)) setTxns(d.txns);
+    } catch { alert("That file is not a Daybook backup."); }
+  };
   const exportData = () => {
     const blob = new Blob([JSON.stringify({ notes, tasks, appts, txns }, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -87,12 +109,18 @@ export default function App() {
   return (
     <div className="mx-auto min-h-screen max-w-md px-4 pb-32 pt-6">
       <h1 className="mb-4 text-2xl font-bold">{TABS.find((t) => t[0] === tab)![1]}</h1>
+      {installEv && tab === "today" && (
+        <div className="card mb-4 flex items-center justify-between gap-3">
+          <span className="text-sm">Install Daybook on your phone for one-tap access.</span>
+          <button className="btn" onClick={install}>Install</button>
+        </div>
+      )}
       {tab === "today" && <Today notes={notes} setNotes={setNotes} tasks={tasks} appts={appts} txns={txns} />}
       {tab === "tasks" && <Tasks tasks={tasks} setTasks={setTasks} />}
       {tab === "cal" && <Calendar appts={appts} setAppts={setAppts} />}
       {tab === "money" && <Money txns={txns} setTxns={setTxns} />}
       {tab === "notes" && <Notes notes={notes} setNotes={setNotes} />}
-      {tab === "more" && <More exportData={exportData} testAlarm={() => { setRing({ id: "test", title: "Test alarm" }); startRing(); }} />}
+      {tab === "more" && <More canInstall={!!installEv} install={install} exportData={exportData} importData={importData} testAlarm={() => { setRing({ id: "test", title: "Test alarm" }); startRing(); }} />}
 
       <button aria-label="Voice command" onClick={mic} className={`fixed bottom-24 right-5 z-20 flex h-14 w-14 items-center justify-center rounded-full bg-alarm text-[#2A1C00] shadow-lg active:scale-95 ${rec ? "ring-pulse" : ""}`}>
         <Mic />

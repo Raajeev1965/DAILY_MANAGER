@@ -24,3 +24,5 @@ export function useStore<T>(key: string, init: T) {
   useEffect(() => { if (ready) localStorage.setItem("daybook:" + key, JSON.stringify(v)); }, [key, v, ready]);
   return [v, setV] as const;
 }
+
+export const toLocalInput = (n: number) => new Date(n - new Date(n).getTimezoneOffset() * 60000).toISOString().slice(0, 16);

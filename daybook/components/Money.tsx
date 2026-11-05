@@ -6,6 +6,7 @@ import { Txn, CATS, uid, money, dt, Setter } from "@/lib/store";
 import { guess } from "@/lib/category";
 import { amountIn } from "@/lib/voice";
 import Records from "@/components/Records";
+import TxnRow from "@/components/TxnRow";
 
 const sum = (l: Txn[]) => l.reduce((s, x) => s + x.amount, 0);
 
@@ -80,22 +81,7 @@ export default function Money({ txns, setTxns }: { txns: Txn[]; setTxns: Setter<
         <button className="btn w-full" onClick={add}>Save {type}</button>
       </div>
       {txns.length === 0 && <p className="text-mute">No transactions yet. Add your first one above.</p>}
-      {txns.slice(0, 50).map((x) => (
-        <div key={x.id} className="card flex items-center gap-3 py-3">
-          <div className="flex-1">
-            {x.type === "expense" ? (
-              <select aria-label="Change head" className="rounded-lg bg-paper px-1 py-0.5 text-sm" value={x.cat}
-                onChange={(e) => setTxns((p) => p.map((t) => (t.id === x.id ? { ...t, cat: e.target.value } : t)))}>
-                {CATS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            ) : <div>Income</div>}
-            {x.note && <div className="text-sm text-mute">{x.note}</div>}
-            <div className="text-xs text-mute">{dt(x.at)}</div>
-          </div>
-          <div className={x.type === "income" ? "font-semibold text-inc" : "font-semibold text-out"}>{x.type === "income" ? "+" : "−"}{money(x.amount)}</div>
-          <button aria-label="Delete" onClick={() => setTxns((p) => p.filter((t) => t.id !== x.id))}><Trash2 size={18} className="text-mute" /></button>
-        </div>
-      ))}
+      {txns.slice(0, 50).map((x) => <TxnRow key={x.id} x={x} setTxns={setTxns} showDate />)}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Trash2 } from "lucide-react";
 import { Txn, CATS, money, tm, Setter } from "@/lib/store";
+import TxnRow from "@/components/TxnRow";
 
 type Mode = "day" | "week" | "month" | "custom";
 const key = (n: number | Date) => {
@@ -141,22 +142,7 @@ export default function Records({ txns, setTxns }: { txns: Txn[]; setTxns: Sette
             <span>{new Date(k + "T00:00:00").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</span>
             <span className="text-out">{money(sum(groups[k].filter((x) => x.type === "expense")))}</span>
           </div>
-          {groups[k].sort((a, b) => b.at - a.at).map((x) => (
-            <div key={x.id} className="card flex items-center gap-3 py-3">
-              <div className="flex-1">
-                {x.type === "expense" ? (
-                  <select aria-label="Change head" className="rounded-lg bg-paper px-1 py-0.5 text-sm" value={x.cat}
-                    onChange={(e) => setTxns((p) => p.map((t) => (t.id === x.id ? { ...t, cat: e.target.value } : t)))}>
-                    {CATS.map((c) => <option key={c}>{c}</option>)}
-                  </select>
-                ) : <div>Income</div>}
-                {x.note && <div className="text-sm text-mute">{x.note}</div>}
-                <div className="text-xs text-mute">{tm(x.at)}</div>
-              </div>
-              <div className={x.type === "income" ? "font-semibold text-inc" : "font-semibold text-out"}>{x.type === "income" ? "+" : "−"}{money(x.amount)}</div>
-              <button aria-label="Delete" onClick={() => setTxns((p) => p.filter((t) => t.id !== x.id))}><Trash2 size={18} className="text-mute" /></button>
-            </div>
-          ))}
+          {groups[k].sort((a, b) => b.at - a.at).map((x) => <TxnRow key={x.id} x={x} setTxns={setTxns} />)}
         </div>
       ))}
     </div>

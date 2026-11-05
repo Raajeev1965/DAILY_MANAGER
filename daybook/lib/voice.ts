@@ -1,4 +1,5 @@
 import { guess } from "./category";
+import { isNative } from "./native";
 
 export type Intent =
   | { kind: "note"; text: string }
@@ -89,6 +90,7 @@ const ERRORS: Record<string, string> = {
 };
 
 export function listen(lang: string, o: { onText: (t: string) => void; onStatus: (s: string) => void; onEnd: () => void }): Mic | null {
+  if (isNative()) return listenNative(lang, o);
   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SR) return null;
   let active = true, prior = "", session = "", silent = 0, r: any;
@@ -134,4 +136,42 @@ export function listen(lang: string, o: { onText: (t: string) => void; onStatus:
   };
   try { begin(); } catch { o.onStatus("Could not start the microphone."); return null; }
   return { stop: () => { active = false; o.onStatus(""); try { r.stop(); } catch {} } };
+}
+
+type Cb = { onText: (t: string) => void; onStatus: (s: string) => void; onEnd: () => void };
+
+function listenNative(lang: string, o: Cb): Mic {
+  let active = true, prior = "", cur = "", silent = 0, heard = false, SR: any;
+  const subs: any[] = [];
+  const cleanup = () => {
+    subs.forEach((x) => x?.remove?.());
+    Promise.resolve(SR?.stop?.()).catch(() => {});
+  };
+  const finish = (msg = "") => { active = false; o.onStatus(msg); cleanup(); o.onEnd(); };
+  const startOnce = async () => {
+    heard = false; cur = "";
+    try {
+      await SR.start({ language: lang, partialResults: true, popup: false });
+      o.onStatus("Listening… tap the mic again when you are done");
+    } catch { finish("Could not start the microphone."); }
+  };
+  (async () => {
+    const m = await import("@capacitor-community/speech-recognition");
+    SR = m.SpeechRecognition;
+    const p = await SR.requestPermissions();
+    if (p.speechRecognition !== "granted") return finish("Microphone permission is needed. Allow it in Android Settings > Apps > Daybook > Permissions.");
+    subs.push(await SR.addListener("partialResults", (d: any) => {
+      const t = d?.matches?.[0];
+      if (t) { heard = true; cur = t; o.onText((prior + " " + cur).trim()); }
+    }));
+    subs.push(await SR.addListener("listeningState", (d: any) => {
+      if (d?.status !== "stopped" || !active) return;
+      prior = (prior + " " + cur).trim(); cur = "";
+      silent = heard ? 0 : silent + 1;
+      if (silent >= 3) return finish(prior ? "" : "I didn't hear anything. Tap the mic and talk closer to the phone.");
+      setTimeout(() => { if (active) startOnce(); }, 150);
+    }));
+    startOnce();
+  })().catch(() => finish("Voice input isn't available on this phone."));
+  return { stop: () => { if (active) finish(""); } };
 }

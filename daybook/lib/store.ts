@@ -5,7 +5,7 @@ export type Note = { id: string; text: string; at: number };
 export type Task = { id: string; title: string; due?: number; done: boolean; alarm: boolean };
 export type Appt = { id: string; title: string; at: number; remind: number; alarm: boolean };
 export type Txn = { id: string; type: "income" | "expense"; amount: number; cat: string; note: string; at: number };
-export type Set<T> = Dispatch<SetStateAction<T>>;
+export type Setter<T> = Dispatch<SetStateAction<T>>;
 
 export const CATS = ["Grocery", "Health", "Communication", "Bills", "Fuel", "Miscellaneous"];
 export const uid = () => Math.random().toString(36).slice(2, 10);

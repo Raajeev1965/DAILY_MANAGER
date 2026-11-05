@@ -1,18 +1,10 @@
-import { CATS } from "./store";
+import { guess } from "./category";
 
 export type Intent =
   | { kind: "note"; text: string }
   | { kind: "task"; title: string; due?: number; alarm: boolean }
   | { kind: "appt"; title: string; at: number }
   | { kind: "txn"; type: "income" | "expense"; amount: number; cat: string; note: string };
-
-const KEYS: Record<string, string[]> = {
-  Grocery: ["grocery", "groceries", "vegetable", "milk", "kirana"],
-  Health: ["health", "medicine", "doctor", "hospital", "medical"],
-  Communication: ["communication", "recharge", "mobile", "phone", "internet", "wifi"],
-  Bills: ["bill", "electricity", "rent", "water", "gas"],
-  Fuel: ["fuel", "petrol", "diesel"],
-};
 
 function when(s: string): { at?: number; rest: string } {
   const now = new Date(), d = new Date(now);
@@ -38,34 +30,60 @@ function when(s: string): { at?: number; rest: string } {
 const cap = (x: string) => x.replace(/\s+/g, " ").trim().replace(/^./, (c) => c.toUpperCase());
 
 export function parse(raw: string): Intent {
-  const s = raw.trim(), l = s.toLowerCase();
-  const amt = l.match(/(\d+(?:\.\d+)?)/);
-  if (/^(spent|paid|expense|bought)\b/.test(l) && amt) {
-    const cat = CATS.find((c) => KEYS[c]?.some((k) => l.includes(k)) || l.includes(c.toLowerCase())) || "Miscellaneous";
-    return { kind: "txn", type: "expense", amount: +amt[1], cat, note: cap(s) };
-  }
-  if (/^(received|earned|income|salary|got)\b/.test(l) && amt)
-    return { kind: "txn", type: "income", amount: +amt[1], cat: "Income", note: cap(s) };
-
+  const s = raw.trim();
+  const l = s.toLowerCase().replace(/(\d),(\d{3})/g, "$1$2");
   const w = when(l);
   const title = (re: RegExp) => cap(w.rest.replace(re, ""));
+
+  if (/^note\b/.test(l)) return { kind: "note", text: cap(s.replace(/^note[:,]?\s*/i, "")) };
   if (/^(remind|reminder)/.test(l))
     return { kind: "task", title: title(/^\s*(remind me to|remind me|reminder)\s*/), due: w.at, alarm: !!w.at };
   if (/^(add task|task|todo)/.test(l))
     return { kind: "task", title: title(/^\s*(add task|task|todo)\s*/), due: w.at, alarm: !!w.at };
   if (/^(appointment|meeting|schedule)/.test(l))
     return { kind: "appt", title: title(/^\s*(appointment with|appointment|meeting with|meeting|schedule)\s*/), at: w.at ?? Date.now() + 864e5 };
-  return { kind: "note", text: cap(s.replace(/^note[:,]?\s*/i, "")) };
+
+  // Money: needs a number, plus a money word, an expense verb, or a known category word.
+  const amt = l.match(/(\d+(?:\.\d+)?)/);
+  if (amt) {
+    const g = guess(l);
+    const isIncome = /\b(received|earned|income|salary|credited|bonus|refund|got paid)\b/.test(l);
+    const isExpense = /^(spent|paid|expense|bought|purchased|gave)\b/.test(l) || /\b(rupees|rs|inr)\b|₹/.test(l) || g.score > 0;
+    if (isIncome) return { kind: "txn", type: "income", amount: +amt[1], cat: "Income", note: cap(s) };
+    if (isExpense) return { kind: "txn", type: "expense", amount: +amt[1], cat: g.cat, note: cap(s) };
+  }
+  return { kind: "note", text: cap(s) };
 }
 
-export function listen(onText: (t: string) => void, onEnd: () => void): boolean {
+export type Mic = { stop: () => void };
+
+const ERRORS: Record<string, string> = {
+  "not-allowed": "The microphone is blocked. Allow it in the browser's site settings, then tap Speak again.",
+  "service-not-allowed": "Voice input is blocked here. If Daybook is on your Home Screen, open it in Chrome instead, or type below.",
+  "no-speech": "I didn't hear anything. Tap Speak again and talk closer to the phone.",
+  "audio-capture": "No microphone was found.",
+  network: "Voice input needs an internet connection.",
+  "language-not-supported": "Your phone's voice engine doesn't support this language.",
+};
+
+export function listen(lang: string, o: { onText: (t: string) => void; onStatus: (s: string) => void; onEnd: () => void }): Mic | null {
   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  if (!SR) return false;
+  if (!SR) return null;
   const r = new SR();
-  r.lang = "en-IN";
-  r.onresult = (e: any) => onText(e.results[0][0].transcript);
-  r.onend = onEnd;
-  r.onerror = onEnd;
-  r.start();
-  return true;
+  r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+  let got = false, failed = false;
+  r.onstart = () => o.onStatus("Listening… speak now");
+  r.onresult = (e: any) => {
+    let t = "";
+    for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+    got = true; o.onText(t.trim());
+  };
+  r.onerror = (e: any) => { failed = true; o.onStatus(ERRORS[e.error] || "Voice error: " + e.error); };
+  r.onend = () => {
+    if (!got && !failed) o.onStatus("I didn't catch that. Tap Speak again.");
+    else if (got) o.onStatus("");
+    o.onEnd();
+  };
+  try { r.start(); } catch { o.onStatus("Could not start the microphone."); return null; }
+  return { stop: () => { try { r.stop(); } catch {} } };
 }

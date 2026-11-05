@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
 import { BellRing } from "lucide-react";
-import { Note, Task, Appt, Txn, money, tm, dt, uid, Set } from "@/lib/store";
+import { Note, Task, Appt, Txn, money, tm, dt, uid, Setter } from "@/lib/store";
 
 export default function Today({ notes, setNotes, tasks, appts, txns }:
-  { notes: Note[]; setNotes: Set<Note[]>; tasks: Task[]; appts: Appt[]; txns: Txn[] }) {
+  { notes: Note[]; setNotes: Setter<Note[]>; tasks: Task[]; appts: Appt[]; txns: Txn[] }) {
   const [text, setText] = useState("");
   const today = new Date().toDateString();
   const isToday = (n: number) => new Date(n).toDateString() === today;

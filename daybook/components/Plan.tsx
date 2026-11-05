@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
 import { Circle, CheckCircle2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
-import { Task, Appt, uid, tm, dt, Set } from "@/lib/store";
+import { Task, Appt, uid, tm, dt, Setter } from "@/lib/store";
 
-export function Tasks({ tasks, setTasks }: { tasks: Task[]; setTasks: Set<Task[]> }) {
+export function Tasks({ tasks, setTasks }: { tasks: Task[]; setTasks: Setter<Task[]> }) {
   const [title, setTitle] = useState("");
   const [due, setDue] = useState("");
   const [alarm, setAlarm] = useState(true);
@@ -38,7 +38,7 @@ export function Tasks({ tasks, setTasks }: { tasks: Task[]; setTasks: Set<Task[]
   );
 }
 
-export function Calendar({ appts, setAppts }: { appts: Appt[]; setAppts: Set<Appt[]> }) {
+export function Calendar({ appts, setAppts }: { appts: Appt[]; setAppts: Setter<Appt[]> }) {
   const [m, setM] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
   const [sel, setSel] = useState(new Date().toDateString());
   const [title, setTitle] = useState("");

@@ -121,7 +121,7 @@ export default function App() {
             <input className="inp" placeholder="Or type a command, e.g. Spent 450 on fuel" value={heard} onChange={(e) => setHeard(e.target.value)} />
             {intent && <div className="rounded-xl bg-paper p-3 text-sm">{describe(intent)}</div>}
             <div className="grid grid-cols-2 gap-2">
-              <button className="rounded-xl border border-line py-2.5" onClick={mic}>Speak again</button>
+              <button className="rounded-xl border border-line py-2.5" onClick={() => (rec ? micRef.current?.stop() : mic())}>{rec ? "Stop" : "Speak again"}</button>
               <button className="btn" onClick={save} disabled={!intent}>Save</button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import VoiceField from "@/components/VoiceField";
 import { BellRing } from "lucide-react";
 import { Note, Task, Appt, Txn, money, tm, dt, uid, Setter } from "@/lib/store";
 
@@ -41,8 +42,8 @@ export default function Today({ notes, setNotes, tasks, appts, txns }:
         <div className="card"><div className="text-sm text-mute">Open tasks</div><div className="text-2xl font-bold">{open}</div></div>
         <div className="card"><div className="text-sm text-mute">Spent today</div><div className="text-2xl font-bold">{money(spent)}</div></div>
       </div>
-      <div className="flex gap-2">
-        <input className="inp" placeholder="Write a note…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+      <div className="flex items-start gap-2">
+        <div className="flex-1"><VoiceField placeholder="Write a note…" value={text} onChange={setText} onEnter={add} /></div>
         <button className="btn" onClick={add}>Save</button>
       </div>
       <div className="space-y-2">

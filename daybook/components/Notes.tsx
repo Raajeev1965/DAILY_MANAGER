@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import VoiceField from "@/components/VoiceField";
 import { Trash2, Pencil, Check, Search } from "lucide-react";
 import { Note, uid, tm, dt, Setter } from "@/lib/store";
 
@@ -26,7 +27,7 @@ export default function Notes({ notes, setNotes }: { notes: Note[]; setNotes: Se
   return (
     <div className="space-y-4">
       <div className="card space-y-2">
-        <textarea className="inp min-h-24" placeholder="Write a note. Add #tags to find it later." value={text} onChange={(e) => setText(e.target.value)} />
+        <VoiceField multiline placeholder="Write or speak a note. Add #tags to find it later." value={text} onChange={setText} />
         <button className="btn w-full" onClick={add}>Save note</button>
       </div>
       <div className="relative">

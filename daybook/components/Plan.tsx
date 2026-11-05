@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import VoiceField from "@/components/VoiceField";
 import { Circle, CheckCircle2, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Task, Appt, uid, tm, dt, Setter } from "@/lib/store";
 
@@ -16,7 +17,7 @@ export function Tasks({ tasks, setTasks }: { tasks: Task[]; setTasks: Setter<Tas
   return (
     <div className="space-y-4">
       <div className="card space-y-2">
-        <input className="inp" placeholder="New task or reminder" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <VoiceField placeholder="New task or reminder" value={title} onChange={setTitle} />
         <input className="inp" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} />
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={alarm} onChange={(e) => setAlarm(e.target.checked)} />Ring an alarm at the due time</label>
         <button className="btn w-full" onClick={add}>Add task</button>
@@ -86,7 +87,7 @@ export function Calendar({ appts, setAppts }: { appts: Appt[]; setAppts: Setter<
         ))}
       </div>
       <div className="card space-y-2">
-        <input className="inp" placeholder="Appointment title" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <VoiceField placeholder="Appointment title" value={title} onChange={setTitle} />
         <input className="inp" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
         <select className="inp" value={remind} onChange={(e) => setRemind(+e.target.value)}>
           <option value={0}>Remind at start time</option><option value={10}>10 minutes before</option>

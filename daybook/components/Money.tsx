@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
+import VoiceField from "@/components/VoiceField";
 import { Trash2 } from "lucide-react";
 import { Txn, CATS, uid, money, dt, Setter } from "@/lib/store";
 import { guess } from "@/lib/category";
+import { amountIn } from "@/lib/voice";
 
 const sum = (l: Txn[]) => l.reduce((s, x) => s + x.amount, 0);
 
@@ -50,8 +52,8 @@ export default function Money({ txns, setTxns }: { txns: Txn[]; setTxns: Setter<
           ))}
         </div>
         <input className="inp" inputMode="decimal" placeholder="Amount (₹)" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <input className="inp" placeholder={type === "expense" ? "What was it for? e.g. petrol, milk, Jio recharge" : "Note (optional)"} value={note}
-          onChange={(e) => { setNote(e.target.value); if (!manual) setCat(guess(e.target.value).cat); }} />
+        <VoiceField placeholder={type === "expense" ? "What was it for? e.g. petrol, milk, Jio recharge" : "Note (optional)"} value={note}
+          onChange={(v) => { setNote(v); if (!manual) setCat(guess(v).cat); if (!amount) { const n = amountIn(v); if (n) setAmount(String(n)); } }} />
         {type === "expense" && (
           <div>
             <div className="mb-1 text-xs text-mute">{manual ? "Head chosen by you" : "Head sorted automatically. Tap to change."}</div>

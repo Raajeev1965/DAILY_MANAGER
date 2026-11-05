@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Trash2, Pencil, Check, Search } from "lucide-react";
 import { Note, uid, tm, dt, Setter } from "@/lib/store";
 
-const tagsOf = (t: string) => t.match(/#\w+/g) || [];
+const tagsOf = (t: string): string[] => t.match(/#\w+/g) ?? [];
 
 export default function Notes({ notes, setNotes }: { notes: Note[]; setNotes: Setter<Note[]> }) {
   const [text, setText] = useState("");

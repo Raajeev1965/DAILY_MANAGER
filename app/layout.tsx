@@ -8,8 +8,10 @@ export const viewport: Viewport = { themeColor: "#0E6B5C", width: "device-width"
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
+         
     <html lang="en" className={font.variable}>
       <body>{children}</body>
     </html>
   );
+ icons: { icon: [{ url: "/favicon.ico" }, { url: "/favicon-32.png", sizes: "32x32" }], apple: "/apple-touch-icon.png" }
 }

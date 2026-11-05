@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react";
 import { Txn, CATS, uid, money, dt, Setter } from "@/lib/store";
 import { guess } from "@/lib/category";
 import { amountIn } from "@/lib/voice";
+import Records from "@/components/Records";
 
 const sum = (l: Txn[]) => l.reduce((s, x) => s + x.amount, 0);
 
@@ -14,6 +15,8 @@ export default function Money({ txns, setTxns }: { txns: Txn[]; setTxns: Setter<
   const [cat, setCat] = useState(CATS[0]);
   const [note, setNote] = useState("");
   const [manual, setManual] = useState(false);
+  const [view, setView] = useState<"add" | "records">("add");
+  const [date, setDate] = useState(() => new Date().toLocaleDateString("en-CA"));
   const now = new Date();
   const mt = txns.filter((x) => { const d = new Date(x.at); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); });
   const inc = sum(mt.filter((x) => x.type === "income"));
@@ -23,11 +26,20 @@ export default function Money({ txns, setTxns }: { txns: Txn[]; setTxns: Setter<
   const add = () => {
     const n = parseFloat(amount);
     if (!n || n <= 0) return;
-    setTxns((p) => [{ id: uid(), type, amount: n, cat: type === "income" ? "Income" : cat, note, at: Date.now() }, ...p]);
+    setTxns((p) => [{ id: uid(), type, amount: n, cat: type === "income" ? "Income" : cat, note, at: date === new Date().toLocaleDateString("en-CA") ? Date.now() : new Date(date + "T12:00:00").getTime() }, ...p]);
     setAmount(""); setNote(""); setManual(false); setCat(CATS[0]);
   };
+  const seg = (
+    <div className="grid grid-cols-2 gap-2">
+      {([["add", "Add & this month"], ["records", "Records"]] as const).map(([v, l]) => (
+        <button key={v} onClick={() => setView(v)} className={`rounded-xl border py-2 font-medium ${view === v ? "border-brand bg-brand text-paper" : "border-line"}`}>{l}</button>
+      ))}
+    </div>
+  );
+  if (view === "records") return <div className="space-y-4">{seg}<Records txns={txns} setTxns={setTxns} /></div>;
   return (
     <div className="space-y-4">
+      {seg}
       <div className="card">
         <div className="text-sm text-mute">{now.toLocaleDateString("en-IN", { month: "long", year: "numeric" })} balance</div>
         <div className="text-4xl font-bold">{money(inc - exp)}</div>
@@ -51,6 +63,7 @@ export default function Money({ txns, setTxns }: { txns: Txn[]; setTxns: Setter<
             </button>
           ))}
         </div>
+        <input className="inp" type="date" aria-label="Date" value={date} onChange={(e) => setDate(e.target.value)} />
         <input className="inp" inputMode="decimal" placeholder="Amount (₹)" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <VoiceField placeholder={type === "expense" ? "What was it for? e.g. petrol, milk, Jio recharge" : "Note (optional)"} value={note}
           onChange={(v) => { setNote(v); if (!manual) setCat(guess(v).cat); if (!amount) { const n = amountIn(v); if (n) setAmount(String(n)); } }} />

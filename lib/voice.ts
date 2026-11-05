@@ -29,6 +29,28 @@ function when(s: string): { at?: number; rest: string } {
 
 const cap = (x: string) => x.replace(/\s+/g, " ").trim().replace(/^./, (c) => c.toUpperCase());
 
+const N: Record<string, number> = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90 };
+
+// "five hundred rupees" -> " 500  rupees"
+export function numberWords(s: string): string {
+  const re = new RegExp("\\b(?:(?:" + Object.keys(N).join("|") + "|hundred|thousand|lakh)\\b(?:\\s+and)?\\s*)+", "g");
+  return s.replace(re, (m) => {
+    let total = 0, cur = 0;
+    for (const t of m.trim().split(/\s+/)) {
+      if (t in N) cur += N[t];
+      else if (t === "hundred") cur = (cur || 1) * 100;
+      else if (t === "thousand") { total += (cur || 1) * 1000; cur = 0; }
+      else if (t === "lakh") { total += (cur || 1) * 100000; cur = 0; }
+    }
+    return " " + (total + cur) + " ";
+  });
+}
+
+export function amountIn(text: string): number | null {
+  const m = numberWords(text.toLowerCase().replace(/(\d),(\d{3})/g, "$1$2")).match(/(\d+(?:\.\d+)?)/);
+  return m ? +m[1] : null;
+}
+
 export function parse(raw: string): Intent {
   const s = raw.trim();
   const l = s.toLowerCase().replace(/(\d),(\d{3})/g, "$1$2");
@@ -44,7 +66,7 @@ export function parse(raw: string): Intent {
     return { kind: "appt", title: title(/^\s*(appointment with|appointment|meeting with|meeting|schedule)\s*/), at: w.at ?? Date.now() + 864e5 };
 
   // Money: needs a number, plus a money word, an expense verb, or a known category word.
-  const amt = l.match(/(\d+(?:\.\d+)?)/);
+  const amt = numberWords(l).match(/(\d+(?:\.\d+)?)/);
   if (amt) {
     const g = guess(l);
     const isIncome = /\b(received|earned|income|salary|credited|bonus|refund|got paid)\b/.test(l);
@@ -56,6 +78,24 @@ export function parse(raw: string): Intent {
 }
 
 export type Mic = { stop: () => void };
+
+// Android Chrome (and WebView) in continuous mode often returns the same words again and again:
+// "hello", "hello", "hello hello" ... Build the transcript while dropping those repeats.
+function dedupe(results: any): string {
+  const parts: string[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const t = (results[i][0]?.transcript || "").trim();
+    if (!t) continue;
+    const last = parts[parts.length - 1];
+    if (last !== undefined) {
+      const a = t.toLowerCase(), b = last.toLowerCase();
+      if (a === b || b.endsWith(a)) continue;      // same text again, or a tail of what we already have
+      if (a.startsWith(b)) { parts[parts.length - 1] = t; continue; } // longer version of the previous piece
+    }
+    parts.push(t);
+  }
+  return parts.join(" ");
+}
 
 const ERRORS: Record<string, string> = {
   "not-allowed": "The microphone is blocked. Allow it in the browser's site settings, then tap Speak again.",
@@ -69,21 +109,45 @@ const ERRORS: Record<string, string> = {
 export function listen(lang: string, o: { onText: (t: string) => void; onStatus: (s: string) => void; onEnd: () => void }): Mic | null {
   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SR) return null;
-  const r = new SR();
-  r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
-  let got = false, failed = false;
-  r.onstart = () => o.onStatus("Listening… speak now");
-  r.onresult = (e: any) => {
-    let t = "";
-    for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-    got = true; o.onText(t.trim());
+  let active = true, prior = "", session = "", silent = 0, r: any;
+  const emit = () => o.onText((prior + " " + session).trim());
+  // Continuous mode keeps listening through pauses. If the phone still ends a session, we restart it
+  // and keep everything said so far, until the person taps stop.
+  const begin = () => {
+    r = new SR();
+    r.lang = lang; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
+    let heard = false;
+    session = "";
+    r.onstart = () => o.onStatus("Listening… tap the mic again when you are done");
+    r.onresult = (e: any) => {
+      heard = true;
+      session = dedupe(e.results);
+      emit();
+    };
+    r.onerror = (e: any) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      active = false;
+      o.onStatus(ERRORS[e.error] || "Voice error: " + e.error);
+    };
+    r.onend = () => {
+      if (!active) { o.onEnd(); return; }
+      prior = (prior + " " + session).trim();
+      session = "";
+      silent = heard ? 0 : silent + 1;
+      if (silent >= 3) {
+        active = false;
+        o.onStatus(prior ? "" : "I didn't hear anything. Tap the mic and talk closer to the phone.");
+        o.onEnd();
+        return;
+      }
+      const again = (retry: boolean) => {
+        if (!active) return;
+        try { begin(); } catch { if (retry) setTimeout(() => again(false), 400); else { active = false; o.onEnd(); } }
+      };
+      setTimeout(() => again(true), 120);
+    };
+    r.start();
   };
-  r.onerror = (e: any) => { failed = true; o.onStatus(ERRORS[e.error] || "Voice error: " + e.error); };
-  r.onend = () => {
-    if (!got && !failed) o.onStatus("I didn't catch that. Tap Speak again.");
-    else if (got) o.onStatus("");
-    o.onEnd();
-  };
-  try { r.start(); } catch { o.onStatus("Could not start the microphone."); return null; }
-  return { stop: () => { try { r.stop(); } catch {} } };
+  try { begin(); } catch { o.onStatus("Could not start the microphone."); return null; }
+  return { stop: () => { active = false; o.onStatus(""); try { r.stop(); } catch {} } };
 }

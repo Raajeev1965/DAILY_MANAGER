@@ -69,21 +69,41 @@ const ERRORS: Record<string, string> = {
 export function listen(lang: string, o: { onText: (t: string) => void; onStatus: (s: string) => void; onEnd: () => void }): Mic | null {
   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   if (!SR) return null;
-  const r = new SR();
-  r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
-  let got = false, failed = false;
-  r.onstart = () => o.onStatus("Listening… speak now");
-  r.onresult = (e: any) => {
-    let t = "";
-    for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-    got = true; o.onText(t.trim());
+  let active = true, finalText = "", silent = 0, r: any;
+  // Phones end a session after a short pause, so we restart it until the person taps stop.
+  const begin = () => {
+    r = new SR();
+    r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+    let heard = false;
+    r.onstart = () => o.onStatus("Listening… tap the mic again when you are done");
+    r.onresult = (e: any) => {
+      heard = true;
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const res = e.results[i];
+        if (res.isFinal) finalText += (finalText ? " " : "") + res[0].transcript.trim();
+        else interim += res[0].transcript;
+      }
+      o.onText((finalText + " " + interim).trim());
+    };
+    r.onerror = (e: any) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      active = false;
+      o.onStatus(ERRORS[e.error] || "Voice error: " + e.error);
+    };
+    r.onend = () => {
+      if (!active) { o.onEnd(); return; }
+      silent = heard ? 0 : silent + 1;
+      if (silent >= 2) {
+        active = false;
+        o.onStatus(finalText ? "" : "I didn't hear anything. Tap the mic and talk closer to the phone.");
+        o.onEnd();
+        return;
+      }
+      setTimeout(() => { if (active) { try { begin(); } catch { active = false; o.onEnd(); } } }, 200);
+    };
+    r.start();
   };
-  r.onerror = (e: any) => { failed = true; o.onStatus(ERRORS[e.error] || "Voice error: " + e.error); };
-  r.onend = () => {
-    if (!got && !failed) o.onStatus("I didn't catch that. Tap Speak again.");
-    else if (got) o.onStatus("");
-    o.onEnd();
-  };
-  try { r.start(); } catch { o.onStatus("Could not start the microphone."); return null; }
-  return { stop: () => { try { r.stop(); } catch {} } };
+  try { begin(); } catch { o.onStatus("Could not start the microphone."); return null; }
+  return { stop: () => { active = false; o.onStatus(""); try { r.stop(); } catch {} } };
 }
